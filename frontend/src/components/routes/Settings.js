@@ -3,9 +3,10 @@
  */
 /* global $ */
 import React, {Component} from 'react';
+import update from 'immutability-helper';
 import {Tabs, Tab, Card, Input, Row, Button, Icon, Collection, CollectionItem, Modal} from 'react-materialize';
 import store from "../../stores/settingsStore";
-import { apiActions, deserialize} from 'redux-jsonapi';
+import {apiActions, deserialize} from 'redux-jsonapi';
 import LibraryDialog from "../components/LibraryDialog";
 
 class Settings extends Component {
@@ -13,8 +14,7 @@ class Settings extends Component {
   componentWillMount() {
     store.subscribe(this.change.bind(this));
     this.onChange = this.onChange.bind(this);
-    this.state={"activeTab":0};
-    this.change();
+    this.setState({"activeTab":0}, this.change)
   }
 
   /**
@@ -63,11 +63,9 @@ class Settings extends Component {
     }else{
       $('#deleteModal').modal('close');
       if(confirm) {
-        //store.dispatch(apiActions.remove(lib));
-        this.state.settings.libraries.splice(this.state.settings.libraries.indexOf(lib), 1);
-        this.onSubmit();
+        this.setState({'settings': this.removeLibrary(lib)}, this.onSubmit);
       }
-      this.setState({removing: null});
+        this.setState({removing: null});
     }
   }
 
@@ -85,7 +83,7 @@ class Settings extends Component {
    * save settings, called when submit is clicked
    */
   onSubmit() {
-    var o = this.state.settings;
+    const o = this.state.settings;
     o._type = "settings";
     store.dispatch(apiActions.write(o));
   }
@@ -95,10 +93,40 @@ class Settings extends Component {
    * @param lib
    */
   onLibrarySave(lib) {
-    var o = this.state.settings;
-    this.state.settings.libraries.push(lib);
-    this.setState({"settings":o});
-    this.onSubmit();
+    const o = lib.uuid ?  this.updateLibrary(lib) : this.addLibrary(lib);
+    this.setState({"settings":o}, this.onSubmit);
+  }
+
+  /**
+   * update a currently existing library
+   *
+   * @param lib
+   * @returns {*}
+   */
+  updateLibrary(lib) {
+      const  index = this.state.settings.libraries.findIndex((o => o.uuid === lib.uuid));
+      return update(this.state.settings, {libraries: {$splice: [[index, 1, lib]]}});
+  }
+
+  /**
+   * Adds a new library
+   *
+   * @param lib
+   * @returns {*}
+   */
+  addLibrary(lib) {
+    return update(this.state.settings, {libraries : {$push : [lib]}});
+  }
+
+  /**
+   * Remove a library
+   *
+   * @param lib
+   * @returns {*}
+   */
+  removeLibrary(lib) {
+    const index = this.state.settings.libraries.indexOf(lib);
+    return update(this.state.settings, {libraries: {$splice: [[index, 1]]}});
   }
 
   /**
@@ -117,7 +145,7 @@ class Settings extends Component {
       return (<p>Loading</p>);
     }
 
-    var listItems = this.state.settings.libraries.map((lib)=>
+    const listItems = this.state.settings.libraries.map((lib)=>
         <CollectionItem onClick={(e)=>{e.stopPropagation(); e.preventDefault(); this.librarySelect(lib)}} key={"key"+lib.uuid}>
           {lib.name}
           <Button icon="delete" onClick={(e)=>{e.stopPropagation(); this.removeLib(lib);}}/>
